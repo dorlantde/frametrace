@@ -1,0 +1,5 @@
+{
+  "name": "frametrace-extension",
+  "private": true,
+  "type": "module"
+}

@@ -3,6 +3,7 @@ package com.example.server.service;
 import com.example.server.dto.VideoContext;
 import com.example.server.dto.TranscriptSegment;
 import com.example.server.utils.MinioUtils;
+import com.example.server.utils.MediaDuration;
 import com.example.server.utils.OcrUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,6 +75,7 @@ public class VideoContextService {
         CountDownLatch branchesFinished = new CountDownLatch(2);
         boolean cleanupWorkDir = true;
         try {
+            long durationMs = MediaDuration.readMillis(readableVideoPath);
             Files.createDirectories(workDir);
             // 两条分支各跑各的，单路挂掉还能带着另一半信息继续往下走。
             Future<BranchResult<TranscriptSegment>> transcriptFuture = submitBranch(
@@ -90,8 +92,9 @@ public class VideoContextService {
                 long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(60);
                 BranchResult<TranscriptSegment> transcriptResult = awaitBranch(transcriptFuture, deadline);
                 BranchResult<FramePart> frameResult = awaitBranch(frameFuture, deadline);
-                return finishContext(
+                VideoContext context = finishContext(
                         videoPath, userGoal, traceId, transcriptResult, frameResult, uploadedEvidenceFrames);
+                return trimToDuration(context, durationMs);
             } catch (TimeoutException e) {
                 cleanupWorkDir = cancelBranches(branchesFinished, transcriptFuture, frameFuture);
                 throw new IllegalStateException("VideoContext 分支处理超过总时间预算", e);
@@ -113,6 +116,16 @@ public class VideoContextService {
                 log.warn("video_context_workdir_retained path={} reason=branch_still_running", workDir);
             }
         }
+    }
+
+    static VideoContext trimToDuration(VideoContext context, long durationMs) {
+        List<VideoContext.VideoSegment> segments = context.segments().stream()
+                .filter(segment -> segment.startMs() < durationMs)
+                .map(segment -> new VideoContext.VideoSegment(
+                        segment.startMs(), Math.min(segment.endMs(), durationMs),
+                        segment.transcript(), segment.ocrTexts(), segment.evidenceFrames()))
+                .toList();
+        return new VideoContext(context.source(), context.userGoal(), segments);
     }
 
     public void deleteEvidenceFrames(VideoContext context) {

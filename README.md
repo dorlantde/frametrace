@@ -265,3 +265,11 @@ frametrace
 ## License
 
 本项目基于 [MIT License](LICENSE) 开源。
+
+### 视频提取与独立模型配置
+
+本地需安装 FFmpeg、ffprobe 和包含 chi_sim、eng 语言包的 Tesseract。ffprobe 用于读取真实视频时长，转写末段及分析上下文会截断到视频结束时间。目前时间戳仍为分片级，句级时间戳需要适配支持该输出的 ASR 接口。OCR 的诊断输出独立处理。
+
+可分别设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`，`ASR_API_KEY`、`ASR_URL`、`ASR_MODEL`，以及 `EMBEDDING_API_KEY`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`。未设置独立密钥或文本/向量地址时，会回退到原有 `SILICONFLOW_API_KEY`、`SILICONFLOW_BASE_URL`。ASR 地址沿用原有配置。不要把空值当作未设置，应删除对应变量或配置有效值。切换向量模型时应重建对应向量与索引，避免混用不同向量空间。
+
+这些修复对重新提取的视频生效，已有检查点和分析结果不会自动重新计算。

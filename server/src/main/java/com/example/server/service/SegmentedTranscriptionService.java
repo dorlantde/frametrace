@@ -1,6 +1,7 @@
 package com.example.server.service;
 
 import com.example.server.dto.TranscriptSegment;
+import com.example.server.utils.MediaDuration;
 import com.example.server.utils.AliyunAsrUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ public class SegmentedTranscriptionService {
     }
 
     public List<TranscriptSegment> transcribe(String videoPath, Path audioDir, String traceId) throws Exception {
+        long durationMs = MediaDuration.readMillis(videoPath);
         Files.createDirectories(audioDir);
         Path outputPattern = audioDir.resolve("audio_%03d.mp3");
         runFfmpeg(videoPath, outputPattern);
@@ -42,12 +44,13 @@ public class SegmentedTranscriptionService {
         int failedSegments = 0;
         RuntimeException lastSegmentError = null;
         for (int i = 0; i < audioFiles.size(); i++) {
+            if (i * SEGMENT_MS >= durationMs) break;
             Path audioFile = audioFiles.get(i);
             try {
                 telemetry.increment(traceId, "asrCalls", 1);
                 String text = aliyunAsrUtils.audioToText(audioFile.toString());
                 if (text != null && !text.isBlank()) {
-                    result.add(new TranscriptSegment(i * SEGMENT_MS, (i + 1) * SEGMENT_MS, text));
+                    result.add(new TranscriptSegment(i * SEGMENT_MS, Math.min((i + 1) * SEGMENT_MS, durationMs), text));
                 }
             } catch (RuntimeException e) {
                 failedSegments++;

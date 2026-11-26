@@ -26,11 +26,13 @@ public class OcrUtils {
         if (image == null || !image.isFile()) throw new IllegalArgumentException("OCR image does not exist");
         Process process = null;
         Path output = null;
+        Path diagnostics = null;
         try {
             output = Files.createTempFile("frametrace-ocr-", ".txt");
+            diagnostics = Files.createTempFile("frametrace-ocr-errors-", ".log");
             process = new ProcessBuilder(
                     ocrCommand, image.getAbsolutePath(), "stdout", "-l", "chi_sim+eng")
-                    .redirectErrorStream(true)
+                    .redirectError(diagnostics.toFile())
                     .redirectOutput(output.toFile())
                     .start();
             if (!process.waitFor(2, TimeUnit.MINUTES)) {
@@ -48,6 +50,13 @@ public class OcrUtils {
             throw new IllegalStateException("OCR failed for " + image.getName(), e);
         } finally {
             if (process != null && process.isAlive()) process.destroyForcibly();
+            if (diagnostics != null) {
+                try {
+                    Files.deleteIfExists(diagnostics);
+                } catch (Exception e) {
+                    log.warn("ocr_diagnostics_cleanup_failed", e);
+                }
+            }
             if (output != null) {
                 try {
                     Files.deleteIfExists(output);

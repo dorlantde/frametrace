@@ -15,6 +15,40 @@ import static org.mockito.Mockito.*;
 
 class AnalysisControllerTest {
     @Test
+    void detailedSearchReturnsReportThroughNormalEntryPoint() {
+        AiService ai = mock(AiService.class);
+        MediaService media = mock(MediaService.class);
+        AgentCheckpointService checkpoints = mock(AgentCheckpointService.class);
+        when(checkpoints.loadContext(7L)).thenReturn(new com.example.server.dto.VideoContext("video", "", List.of()));
+        var report = new com.example.server.dto.RetrievalReport("question",
+                new com.example.server.dto.VideoRetrievalIntent("question", List.of(), List.of()),
+                com.example.server.dto.RetrievalReport.Strategy.HYBRID, List.of(), List.of());
+        when(ai.explainEvidence(7L, "question", report.strategy())).thenReturn(report);
+        AnalysisDispatchService dispatch = mock(AnalysisDispatchService.class);
+        AnalysisController controller = new AnalysisController(ai, dispatch, checkpoints,
+                mock(AgentEvaluationService.class), mock(AgentTelemetry.class), media,
+                mock(TaskEventService.class), mock(AnalysisStatusService.class), mock(ModeRouter.class), Runnable::run);
+        assertEquals(report, controller.explainEvidence(7L, "question", report.strategy(), 3L).join().data());
+        verify(media).requireOwnedMedia(7L, 3L);
+        verify(dispatch).requireAiQuota(3L);
+    }
+
+    @Test
+    void detailedSearchChecksOwnershipBeforeCallingModels() {
+        AiService ai = mock(AiService.class);
+        MediaService media = mock(MediaService.class);
+        when(media.requireOwnedMedia(7L, 3L)).thenThrow(new SecurityException("not owner"));
+        AnalysisController controller = new AnalysisController(ai, mock(AnalysisDispatchService.class),
+                mock(AgentCheckpointService.class), mock(AgentEvaluationService.class),
+                mock(AgentTelemetry.class), media, mock(TaskEventService.class),
+                mock(AnalysisStatusService.class), mock(ModeRouter.class), Runnable::run);
+        org.junit.jupiter.api.Assertions.assertThrows(SecurityException.class,
+                () -> controller.explainEvidence(7L, "question",
+                        com.example.server.dto.RetrievalReport.Strategy.HYBRID, 3L));
+        verifyNoInteractions(ai);
+    }
+
+    @Test
     void revisionUsesBodyModeWhenQueryIsMissingAndAllowsExplicitQueryOverride() {
         AiService ai = mock(AiService.class);
         AnalysisDispatchService dispatch = mock(AnalysisDispatchService.class);

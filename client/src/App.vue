@@ -352,6 +352,11 @@
                 <button type="button" :disabled="!sidebar.content" @click="downloadResult">导出 Markdown</button>
               </div>
               <div class="evidence-search">
+                <label>检索方式
+                  <select v-model="sidebar.evidenceStrategy" :disabled="sidebar.evidenceLoading" aria-label="检索方式">
+                    <option value="HYBRID">混合检索</option><option value="KEYWORD">关键词</option><option value="VECTOR">向量</option>
+                  </select>
+                </label>
                 <div class="evidence-search-form">
                   <input
                       v-model="sidebar.evidenceQuery"
@@ -364,6 +369,7 @@
                     {{ sidebar.evidenceLoading ? '检索中' : '定位证据' }}
                   </button>
                 </div>
+                <RetrievalDetails v-if="sidebar.evidenceReport" :report="sidebar.evidenceReport" />
                 <p v-if="sidebar.evidenceError" class="evidence-search-error" aria-live="polite">{{ sidebar.evidenceError }}</p>
                 <div v-if="sidebar.evidenceResults.length" class="evidence-search-results" aria-live="polite">
                   <button
@@ -383,6 +389,14 @@
               <details v-if="sidebar.plan?.tasks?.length || traceStages.length" class="agent-inspector">
                 <summary>分析详情</summary>
                 <div class="agent-inspector-content">
+                <RetrievalDetails v-for="(report, index) in sidebar.trace?.retrievals || []" :key="index" :report="report" />
+                <details v-if="sidebar.trace?.selectedContext?.length">
+                  <summary>最终选入模型上下文的片段</summary>
+                  <div v-for="segment in sidebar.trace.selectedContext" :key="segment.startMs">
+                    <p>{{ formatEvidenceTime(segment.startMs) }} – {{ formatEvidenceTime(segment.endMs) }}</p>
+                    <p>{{ segment.transcript }}</p><p>{{ segment.ocrTexts?.join('、') }}</p>
+                  </div>
+                </details>
                 <div v-if="sidebar.plan?.tasks?.length" class="agent-meta-block">
                   <span class="meta-label">Planner 任务</span>
                   <div v-if="sidebar.editingPlan" class="plan-editor">
@@ -500,6 +514,7 @@
 </template>
 
 <script setup>
+import RetrievalDetails from './RetrievalDetails.vue'
 import { computed, nextTick, ref, watch, onMounted, onUnmounted } from 'vue'
 import { apiRequest, captureAuthSession, clearAuthToken, hasAuthToken, setAuthToken } from './api'
 import {

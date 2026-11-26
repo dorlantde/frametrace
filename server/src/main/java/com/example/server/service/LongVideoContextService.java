@@ -1,5 +1,6 @@
 package com.example.server.service;
 
+import com.example.server.dto.RetrievalReport;
 import com.example.server.dto.AgentState;
 import com.example.server.dto.VideoChunk;
 import com.example.server.dto.VideoContext;
@@ -55,6 +56,12 @@ public class LongVideoContextService {
         return retrievalService.search(mediaId, context.userGoal(), chunks);
     }
 
+    public RetrievalReport explainEvidence(Long mediaId, VideoContext context,
+            RetrievalReport.Strategy strategy) {
+        return retrievalService.explain(mediaId, context.userGoal(),
+                resolveChunks(mediaId, context.segments()), strategy);
+    }
+
     public VideoContext refineForCritique(Long mediaId,
                                           VideoContext fullContext,
                                           VideoContext selectedContext,
@@ -101,6 +108,7 @@ public class LongVideoContextService {
         telemetry.incrementCurrent("contextSegmentsDropped", candidates.size() - selected.size());
         telemetry.valueCurrent("contextChars", usedChars);
         selected.sort(Comparator.comparingLong(VideoContext.VideoSegment::startMs));
+        telemetry.selectedContextCurrent(selected);
         return new VideoContext(context.source(), context.userGoal(), selected);
     }
 

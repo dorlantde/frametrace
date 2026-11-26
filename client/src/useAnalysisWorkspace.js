@@ -63,6 +63,8 @@ function createSidebarState() {
     evidenceQuery: '',
     evidenceLoading: false,
     evidenceResults: [],
+    evidenceReport: null,
+    evidenceStrategy: 'HYBRID',
     evidenceError: '',
     plan: null,
     trace: null,
@@ -636,6 +638,7 @@ export function useAnalysisWorkspace({
     sidebar.value.evidenceLoading = true
     sidebar.value.evidenceError = ''
     sidebar.value.evidenceResults = []
+    sidebar.value.evidenceReport = null
     try {
       if (demoMode) {
         const demoResults = [{
@@ -653,16 +656,18 @@ export function useAnalysisWorkspace({
       }
       const params = new URLSearchParams({
         id: String(mediaId),
-        query
+        query,
+        strategy: sidebar.value.evidenceStrategy
       })
-      const response = await apiRequest(`/analysis/evidence-search?${params}`)
+      const response = await apiRequest(`/analysis/evidence-search-details?${params}`)
       if (!response.ok) {
         const detail = await response.text()
         throw new Error(detail || '视频证据检索失败')
       }
       const results = await response.json()
       if (requestVersion !== evidenceRequestVersion || sidebar.value.mediaId !== mediaId) return
-      sidebar.value.evidenceResults = Array.isArray(results) ? results : []
+      sidebar.value.evidenceReport = Array.isArray(results) ? null : results
+      sidebar.value.evidenceResults = Array.isArray(results) ? results : (results?.candidates || []).map(candidate => candidate.evidence)
       if (!sidebar.value.evidenceResults.length) {
         sidebar.value.evidenceError = '没有找到匹配的视频证据'
       }

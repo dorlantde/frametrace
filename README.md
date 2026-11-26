@@ -273,3 +273,7 @@ frametrace
 可分别设置 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`，`ASR_API_KEY`、`ASR_URL`、`ASR_MODEL`，以及 `EMBEDDING_API_KEY`、`EMBEDDING_BASE_URL`、`EMBEDDING_MODEL`。未设置独立密钥或文本/向量地址时，会回退到原有 `SILICONFLOW_API_KEY`、`SILICONFLOW_BASE_URL`。ASR 地址沿用原有配置。不要把空值当作未设置，应删除对应变量或配置有效值。切换向量模型时应重建对应向量与索引，避免混用不同向量空间。
 
 这些修复对重新提取的视频生效，已有检查点和分析结果不会自动重新计算。
+
+### 检索过程与评测
+
+工作台的“定位证据”支持关键词、向量和混合检索，展开“检索过程”可查看查询、得分、时间段与降级原因。分析详情展示实际选入上下文的证据。实现范围、复现命令和教学样例评测结果见 [检索评测说明](docs/retrieval-evaluation.md)。

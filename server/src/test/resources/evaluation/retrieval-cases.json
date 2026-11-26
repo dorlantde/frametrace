@@ -1,0 +1,244 @@
+{
+  "description": "人工编写的教学文本样例，时间区间为样例标注，非真实视频评测集",
+  "chunks": [
+    {
+      "startTime": 0,
+      "endTime": 300000,
+      "segmentSummary": "消息幂等。消费者收到重复消息时，使用业务唯一键检查处理结果，已完成任务直接返回，避免重复扣款。",
+      "keywords": [
+        "重复消息",
+        "业务唯一键"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 0,
+          "endMs": 60000,
+          "transcript": "消费者收到重复消息时，使用业务唯一键检查处理结果，已完成任务直接返回，避免重复扣款。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 300000,
+      "endTime": 600000,
+      "segmentSummary": "预约冲突。预约理发时先锁定理发师当天排班，再检查开始时间与结束时间是否重叠。",
+      "keywords": [
+        "预约",
+        "排班"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 300000,
+          "endMs": 360000,
+          "transcript": "预约理发时先锁定理发师当天排班，再检查开始时间与结束时间是否重叠。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 600000,
+      "endTime": 900000,
+      "segmentSummary": "缓存版本。评价提交事务内递增评分版本，旧查询写回旧版本缓存，读取新版本即可隔离旧值。",
+      "keywords": [
+        "评分",
+        "版本"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 600000,
+          "endMs": 660000,
+          "transcript": "评价提交事务内递增评分版本，旧查询写回旧版本缓存，读取新版本即可隔离旧值。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 900000,
+      "endTime": 1200000,
+      "segmentSummary": "视频上传。大视频按五兆字节拆分上传，Redis 保存已完成分片编号，中断后只传缺失分片。",
+      "keywords": [
+        "分片",
+        "续传"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 900000,
+          "endMs": 960000,
+          "transcript": "大视频按五兆字节拆分上传，Redis 保存已完成分片编号，中断后只传缺失分片。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 1200000,
+      "endTime": 1500000,
+      "segmentSummary": "线程池。转写和画面识别使用独立有界线程池，慢任务不会无限堆积，超过队列容量时拒绝新任务。",
+      "keywords": [
+        "线程池",
+        "队列"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 1200000,
+          "endMs": 1260000,
+          "transcript": "转写和画面识别使用独立有界线程池，慢任务不会无限堆积，超过队列容量时拒绝新任务。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 1500000,
+      "endTime": 1800000,
+      "segmentSummary": "构建命令。终端执行构建，生成可部署的前端资源。",
+      "keywords": [
+        "构建",
+        "部署"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 1500000,
+          "endMs": 1560000,
+          "transcript": "终端执行构建，生成可部署的前端资源。",
+          "ocrTexts": [
+            "npm run build",
+            "dist/"
+          ],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 1800000,
+      "endTime": 2100000,
+      "segmentSummary": "发布计划。会议决定十二月十日前完成灰度发布，负责人是李明。测试环境验收通过后再全量上线。",
+      "keywords": [
+        "灰度发布",
+        "负责人"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 1800000,
+          "endMs": 1860000,
+          "transcript": "会议决定十二月十日前完成灰度发布，负责人是李明。测试环境验收通过后再全量上线。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    },
+    {
+      "startTime": 2100000,
+      "endTime": 2400000,
+      "segmentSummary": "限流。外部服务返回429时按指数退避重试，设置重试次数上限，避免请求持续放大。",
+      "keywords": [
+        "429",
+        "退避"
+      ],
+      "rawSegments": [
+        {
+          "startMs": 2100000,
+          "endMs": 2160000,
+          "transcript": "外部服务返回429时按指数退避重试，设置重试次数上限，避免请求持续放大。",
+          "ocrTexts": [],
+          "evidenceFrames": []
+        }
+      ],
+      "embedding": []
+    }
+  ],
+  "questions": [
+    {
+      "query": "同一条任务被执行两遍怎么办",
+      "keywords": [
+        "重复消息",
+        "处理结果"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 0,
+      "expectedEndMs": 60000
+    },
+    {
+      "query": "怎么阻止同一时间被两个人预约",
+      "keywords": [
+        "预约",
+        "时间"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 300000,
+      "expectedEndMs": 360000
+    },
+    {
+      "query": "评分更新后如何防止旧查询覆盖新结果",
+      "keywords": [
+        "评分",
+        "旧查询"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 600000,
+      "expectedEndMs": 660000
+    },
+    {
+      "query": "网络断了以后怎么接着传视频",
+      "keywords": [
+        "分片",
+        "中断"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 900000,
+      "expectedEndMs": 960000
+    },
+    {
+      "query": "任务积压时怎样限制内存占用",
+      "keywords": [
+        "队列",
+        "任务"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 1200000,
+      "expectedEndMs": 1260000
+    },
+    {
+      "query": "前端打包命令和生成目录是什么",
+      "keywords": [
+        "构建"
+      ],
+      "visualKeywords": [
+        "npm run build",
+        "dist"
+      ],
+      "expectedStartMs": 1500000,
+      "expectedEndMs": 1560000
+    },
+    {
+      "query": "谁负责发布，什么时候完成",
+      "keywords": [
+        "负责人",
+        "发布"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 1800000,
+      "expectedEndMs": 1860000
+    },
+    {
+      "query": "下游请求太频繁被拒绝该怎么处理",
+      "keywords": [
+        "429",
+        "重试"
+      ],
+      "visualKeywords": [],
+      "expectedStartMs": 2100000,
+      "expectedEndMs": 2160000
+    }
+  ]
+}

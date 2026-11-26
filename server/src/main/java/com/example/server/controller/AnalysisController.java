@@ -1,5 +1,6 @@
 package com.example.server.controller;
 
+import com.example.server.dto.RetrievalReport;
 import com.example.server.common.ErrorCode;
 import com.example.server.common.Result;
 import com.example.server.dto.AgentFeedback;
@@ -142,6 +143,18 @@ public class AnalysisController {
         dispatchService.requireAiQuota(userId);
         String normalizedQuery = normalizeText(query, "检索问题");
         return runInteractive(() -> aiService.searchEvidence(id, normalizedQuery));
+    }
+
+    @GetMapping("/evidence-search-details")
+    public CompletableFuture<Result<RetrievalReport>> explainEvidence(
+            @RequestParam Long id, @RequestParam String query,
+            @RequestParam(defaultValue = "HYBRID") RetrievalReport.Strategy strategy,
+            @RequestAttribute(AuthService.REQUEST_USER_ID) Long userId) {
+        mediaService.requireOwnedMedia(id, userId);
+        requireVideoContext(id);
+        dispatchService.requireAiQuota(userId);
+        String normalizedQuery = normalizeText(query, "检索问题");
+        return runInteractive(() -> aiService.explainEvidence(id, normalizedQuery, strategy));
     }
 
     @PostMapping("/agent-feedback")

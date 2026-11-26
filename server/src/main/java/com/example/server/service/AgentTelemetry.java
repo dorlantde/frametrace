@@ -1,5 +1,9 @@
 package com.example.server.service;
 
+import com.example.server.dto.RetrievalReport;
+import com.example.server.dto.VideoContext;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import com.example.server.dto.AnalysisMode;
 import com.example.server.utils.AnalysisTaskKeys;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -97,6 +101,16 @@ public class AgentTelemetry {
     public void incrementCurrent(String metric, long amount) {
         String traceId = currentTrace.get();
         if (traceId != null) increment(traceId, metric, amount);
+    }
+
+    public void retrievalCurrent(RetrievalReport report) {
+        TraceData trace = traces.get(currentTrace.get() == null ? "" : currentTrace.get());
+        if (trace != null) trace.retrievals.add(report);
+    }
+
+    public void selectedContextCurrent(List<VideoContext.VideoSegment> segments) {
+        TraceData trace = traces.get(currentTrace.get() == null ? "" : currentTrace.get());
+        if (trace != null) trace.selectedContext = List.copyOf(segments);
     }
 
     public void valueCurrent(String metric, double value) {
@@ -240,6 +254,8 @@ public class AgentTelemetry {
         private final Map<String, Long> stageDurations = new ConcurrentHashMap<>();
         private final Map<String, LongAdder> counters = new ConcurrentHashMap<>();
         private final Map<String, Double> values = new ConcurrentHashMap<>();
+        private final List<RetrievalReport> retrievals = new CopyOnWriteArrayList<>();
+        private List<VideoContext.VideoSegment> selectedContext = List.of();
         private final DoubleAdder estimatedCost = new DoubleAdder();
 
         private TraceData(String traceId, Long taskId, String goalDigest, String taskKey) {
@@ -270,6 +286,8 @@ public class AgentTelemetry {
             result.put("counters", counterSnapshot);
             result.put("values", new LinkedHashMap<>(values));
             result.put("estimatedCost", estimatedCost.sum());
+            result.put("retrievals", List.copyOf(retrievals));
+            result.put("selectedContext", selectedContext);
             return result;
         }
     }

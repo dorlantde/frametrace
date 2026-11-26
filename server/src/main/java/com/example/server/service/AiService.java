@@ -1,5 +1,6 @@
 package com.example.server.service;
 
+import com.example.server.dto.RetrievalReport;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.example.server.dto.AgentFeedback;
 import com.example.server.dto.AgentState;
@@ -311,6 +312,21 @@ public class AiService {
                 saveFollowUpHistory(historyKey, mediaId, question, answer);
                 return answer;
             });
+        } finally {
+            telemetry.flush(traceId);
+            telemetry.clear();
+        }
+    }
+
+    public RetrievalReport explainEvidence(Long mediaId, String query,
+            RetrievalReport.Strategy strategy) {
+        VideoContext context = checkpointService.loadContext(mediaId);
+        if (context == null) throw new VideoContextNotReadyException();
+        String traceId = telemetry.start(mediaId, query);
+        telemetry.bind(traceId);
+        try {
+            return longVideoContextService.explainEvidence(mediaId,
+                    new VideoContext(context.source(), query, context.segments()), strategy);
         } finally {
             telemetry.flush(traceId);
             telemetry.clear();

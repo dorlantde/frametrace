@@ -159,3 +159,26 @@ test('a late follow-up from the previous plan cannot append to a revision of the
   assert.equal(workspace.sidebar.value.followUpLoading, false)
   assert.equal(workspace.sidebar.value.rerunLoading, false)
 })
+
+
+test('evidence search displays scored results and clears details before another request', async () => {
+  const report = { strategy: 'VECTOR', intent: { semanticQuery: 'queue' }, fallbacks: ['local'],
+    candidates: [{ evidence: { startMs: 0, endMs: 60000, snippet: 'queue' }, score: 0.8 }] }
+  globalThis.fetch = async url => url.startsWith('/analysis/evidence-search-details')
+    ? json(report) : json({ state: 'NOT_STARTED' })
+  const workspace = setup()
+  await workspace.openAgent(item)
+  workspace.sidebar.value.evidenceQuery = 'queue'
+  workspace.sidebar.value.evidenceStrategy = 'VECTOR'
+  await workspace.searchEvidence()
+  assert.deepEqual(workspace.sidebar.value.evidenceReport, report)
+  assert.equal(workspace.sidebar.value.evidenceResults[0].snippet, 'queue')
+  const pending = deferred()
+  globalThis.fetch = async () => pending.promise
+  const searching = workspace.searchEvidence()
+  assert.equal(workspace.sidebar.value.evidenceReport, null)
+  workspace.closeSidebar()
+  pending.resolve(json(report))
+  await searching
+  assert.equal(workspace.sidebar.value.evidenceReport, null)
+})

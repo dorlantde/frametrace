@@ -1,6 +1,9 @@
 package com.example.server.service;
 
 import com.example.server.dto.VideoChunk;
+import com.example.server.dto.RetrievalReport;
+import com.example.server.dto.RetrievalReport.Strategy;
+import java.util.ArrayList;
 import com.example.server.dto.VideoContext;
 import com.example.server.dto.VideoEvidenceHit;
 import com.example.server.dto.VideoRetrievalIntent;
@@ -39,7 +42,7 @@ public class VideoEvidenceRetrievalService {
     public List<VideoContext.VideoSegment> retrieve(Long mediaId,
                                                      String goal,
                                                      List<VideoChunk> chunks) {
-        return rank(mediaId, goal, chunks).stream()
+        return rank(mediaId, goal, chunks, Strategy.HYBRID, new ArrayList<>()).segments().stream()
                 .map(ScoredSegment::segment)
                 .toList();
     }
@@ -47,36 +50,48 @@ public class VideoEvidenceRetrievalService {
     public List<VideoEvidenceHit> search(Long mediaId,
                                          String query,
                                          List<VideoChunk> chunks) {
-        return rank(mediaId, query, chunks).stream()
-                .limit(MAX_USER_HITS)
-                .map(this::toHit)
-                .toList();
+        return explain(mediaId, query, chunks, Strategy.HYBRID).hits();
     }
 
-    private List<ScoredSegment> rank(Long mediaId,
-                                     String goal,
-                                     List<VideoChunk> chunks) {
-        VideoRetrievalIntent intent = retrievalIntent(goal);
-        List<Double> queryEmbedding = embed(intent.semanticQuery());
-        Map<String, Double> vectorScores = vectorScores(mediaId, queryEmbedding);
+    public RetrievalReport explain(Long mediaId, String query, List<VideoChunk> chunks, Strategy strategy) {
+        List<String> fallbacks = new ArrayList<>();
+        Ranking ranking = rank(mediaId, query, chunks, strategy, fallbacks);
+        return new RetrievalReport(query, ranking.intent(), strategy, List.copyOf(fallbacks),
+                ranking.segments().stream().limit(MAX_USER_HITS).map(segment ->
+                        new RetrievalReport.ScoredHit(toHit(segment), segment.score(),
+                                segment.chunk().score(), segment.chunk().semantic(), segment.transcriptScore(),
+                                segment.visualScore(), segment.chunk().vectorSource())).toList());
+    }
 
+    private Ranking rank(Long mediaId, String goal, List<VideoChunk> chunks,
+                         Strategy strategy, List<String> fallbacks) {
+        VideoRetrievalIntent intent = retrievalIntent(goal, fallbacks);
+        List<Double> queryEmbedding = strategy == Strategy.KEYWORD
+                ? List.of() : embed(intent.semanticQuery(), fallbacks);
+        Map<String, Double> vectorScores = vectorScores(mediaId, queryEmbedding, fallbacks);
         List<ScoredChunk> rankedChunks = chunks.stream()
-                .map(chunk -> new ScoredChunk(
-                        chunk, score(intent, queryEmbedding, vectorScores, chunk)))
-                .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed())
-                .limit(TOP_K)
-                .toList();
+                .map(chunk -> score(intent, queryEmbedding, vectorScores, chunk, strategy))
+                .sorted(Comparator.comparingDouble(ScoredChunk::score).reversed()
+                        .thenComparingLong(chunk -> chunk.chunk().startTime()))
+                .limit(TOP_K).toList();
+        if (strategy != Strategy.KEYWORD && rankedChunks.stream()
+                .anyMatch(chunk -> chunk.vectorSource().equals("UNAVAILABLE"))) {
+            fallbacks.add("部分片段缺少兼容向量，语义分数为 0");
+        }
         if (!rankedChunks.isEmpty()) {
-            telemetry.valueCurrent("retrievalTopScore",
-                    rankedChunks.get(0).score());
+            telemetry.valueCurrent("retrievalTopScore", rankedChunks.getFirst().score());
             telemetry.incrementCurrent("retrievalChunks", rankedChunks.size());
         }
-        return rankedChunks.stream()
+        List<ScoredSegment> segments = rankedChunks.stream()
                 .flatMap(chunk -> chunk.chunk().rawSegments().stream()
-                        .map(segment -> scoreSegment(intent, chunk.score(), segment)))
+                        .map(segment -> scoreSegment(intent, chunk, segment, strategy)))
                 .sorted(Comparator.comparingDouble(ScoredSegment::score).reversed()
-                        .thenComparingLong(result -> result.segment().startMs()))
-                .toList();
+                        .thenComparingLong(result -> result.segment().startMs())).toList();
+        telemetry.retrievalCurrent(new RetrievalReport(goal, intent, strategy, List.copyOf(fallbacks),
+                segments.stream().map(segment -> new RetrievalReport.ScoredHit(toHit(segment),
+                        segment.score(), segment.chunk().score(), segment.chunk().semantic(), segment.transcriptScore(),
+                        segment.visualScore(), segment.chunk().vectorSource())).toList()));
+        return new Ranking(intent, segments);
     }
 
     public void index(Long mediaId, List<VideoChunk> chunks) {
@@ -89,42 +104,45 @@ public class VideoEvidenceRetrievalService {
         }
     }
 
-    private double score(VideoRetrievalIntent intent,
-                         List<Double> queryEmbedding,
-                         Map<String, Double> vectorScores,
-                         VideoChunk chunk) {
-        Double remoteScore = vectorScores.get(chunkKey(chunk));
-        double semanticScore = remoteScore == null
-                ? cosine(queryEmbedding, chunk.embedding())
-                : remoteScore;
-        return semanticScore * 0.6
-                + termScore(intent.keywords(), searchableText(chunk)) * 0.25
-                + termScore(intent.visualKeywords(), visualText(chunk)) * 0.15;
+    private ScoredChunk score(VideoRetrievalIntent intent, List<Double> queryEmbedding,
+                              Map<String, Double> vectorScores, VideoChunk chunk, Strategy strategy) {
+        Double remote = vectorScores.get(chunkKey(chunk));
+        boolean compatible = !queryEmbedding.isEmpty() && queryEmbedding.size() == chunk.embedding().size();
+        double semantic = remote == null ? cosine(queryEmbedding, chunk.embedding()) : remote;
+        String source = remote != null ? "QDRANT" : compatible ? "LOCAL" : "UNAVAILABLE";
+        if (strategy == Strategy.KEYWORD) source = "NOT_REQUESTED";
+        double keyword = termScore(intent.keywords(), searchableText(chunk));
+        double visual = termScore(intent.visualKeywords(), visualText(chunk));
+        double score = switch (strategy) {
+            case KEYWORD -> keyword * 0.625 + visual * 0.375;
+            case VECTOR -> semantic;
+            case HYBRID -> semantic * 0.6 + keyword * 0.25 + visual * 0.15;
+        };
+        return new ScoredChunk(chunk, score, semantic, source);
     }
 
-    private Map<String, Double> vectorScores(Long mediaId, List<Double> queryEmbedding) {
+    private Map<String, Double> vectorScores(Long mediaId, List<Double> queryEmbedding,
+                                              List<String> fallbacks) {
         Map<String, Double> scores = new LinkedHashMap<>();
         if (mediaId == null || queryEmbedding.isEmpty()) return scores;
         try {
             vectorStore.search(mediaId, queryEmbedding, TOP_K * 2).forEach(hit ->
                     scores.put(hit.startMs() + ":" + hit.endMs(), hit.score()));
+            if (scores.isEmpty()) fallbacks.add("Qdrant 未返回结果，使用已有本地向量");
         } catch (RuntimeException e) {
             telemetry.incrementCurrent("vectorStoreFallbacks", 1);
+            fallbacks.add("Qdrant 不可用，使用已有本地向量");
         }
         return scores;
     }
 
-    private ScoredSegment scoreSegment(VideoRetrievalIntent intent,
-                                       double chunkScore,
-                                       VideoContext.VideoSegment segment) {
+    private ScoredSegment scoreSegment(VideoRetrievalIntent intent, ScoredChunk chunk,
+                                        VideoContext.VideoSegment segment, Strategy strategy) {
         double transcriptScore = termScore(intent.keywords(), segment.transcript());
-        double visualScore = termScore(
-                intent.visualKeywords(), String.join(" ", normalizedOcrTexts(segment)));
-        return new ScoredSegment(
-                segment,
-                chunkScore * 0.55 + transcriptScore * 0.25 + visualScore * 0.20,
-                transcriptScore,
-                visualScore);
+        double visualScore = termScore(intent.visualKeywords(), String.join(" ", normalizedOcrTexts(segment)));
+        double score = strategy == Strategy.VECTOR ? chunk.score()
+                : chunk.score() * 0.55 + transcriptScore * 0.25 + visualScore * 0.20;
+        return new ScoredSegment(segment, score, transcriptScore, visualScore, chunk);
     }
 
     private VideoEvidenceHit toHit(ScoredSegment result) {
@@ -197,21 +215,25 @@ public class VideoEvidenceRetrievalService {
         return dot / (Math.sqrt(leftLength) * Math.sqrt(rightLength));
     }
 
-    private VideoRetrievalIntent retrievalIntent(String goal) {
+    private VideoRetrievalIntent retrievalIntent(String goal, List<String> fallbacks) {
         try {
             VideoRetrievalIntent intent = deepSeekUtils.planRetrieval(goal);
             if (!intent.semanticQuery().isBlank()) return intent;
         } catch (RuntimeException e) {
             telemetry.incrementCurrent("retrievalIntentFallbacks", 1);
         }
+        fallbacks.add("检索问题改写不可用，使用原始问题");
         return new VideoRetrievalIntent(goal, fallbackTerms(goal), fallbackTerms(goal));
     }
 
-    private List<Double> embed(String text) {
+    private List<Double> embed(String text, List<String> fallbacks) {
         try {
-            return embeddingUtils.embed(text);
+            List<Double> vector = embeddingUtils.embed(text);
+            if (vector.isEmpty()) fallbacks.add("Embedding 为空，语义分数为 0");
+            return vector;
         } catch (RuntimeException e) {
             telemetry.incrementCurrent("embeddingFallbacks", 1);
+            fallbacks.add("Embedding 不可用，语义分数为 0");
             return List.of();
         }
     }
@@ -232,7 +254,7 @@ public class VideoEvidenceRetrievalService {
     }
 
     private String normalize(String value) {
-        return value == null ? "" : value.toLowerCase().replaceAll("\\s+", "");
+        return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", "");
     }
 
     private String abbreviate(String value) {
@@ -242,14 +264,17 @@ public class VideoEvidenceRetrievalService {
                 : normalized.substring(0, MAX_SNIPPET_LENGTH) + "...";
     }
 
-    private record ScoredChunk(VideoChunk chunk, double score) {
+    private record Ranking(VideoRetrievalIntent intent, List<ScoredSegment> segments) { }
+
+    private record ScoredChunk(VideoChunk chunk, double score, double semantic, String vectorSource) {
     }
 
     private record ScoredSegment(
             VideoContext.VideoSegment segment,
             double score,
             double transcriptScore,
-            double visualScore
+            double visualScore,
+            ScoredChunk chunk
     ) {
     }
 }
